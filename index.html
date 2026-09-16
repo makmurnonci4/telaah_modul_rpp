@@ -374,6 +374,9 @@
       <button class="btn-analyze" id="btnAnalyze">Telaah Otomatis dengan AI</button>
       <button class="btn-ghost" id="btnCancelImport">Batalkan</button>
     </div>
+    <div class="ai-error" id="aiUnavailableNotice" style="display:none;background:#F3F4EF;border-color:var(--line);color:var(--ink-soft);">
+      Fitur "Telaah Otomatis dengan AI" hanya bisa berfungsi saat file ini dibuka dari dalam tampilan chat Claude, karena permintaannya perlu melewati sandbox resmi Claude. Halaman ini tampaknya dibuka di luar chat Claude (mis. dari GitHub Pages atau file lokal), jadi fitur tersebut dinonaktifkan. Silakan isi skor secara manual di bawah — semua fitur lain (penghitungan skor, cetak, unduh ringkasan) tetap berfungsi normal.
+    </div>
     <div class="ai-error" id="aiError"></div>
     <p class="privacy-note">Saat Anda menekan "Telaah Otomatis dengan AI", teks yang terbaca dari file akan dikirim ke Claude (API Anthropic) untuk dianalisis. Hasilnya adalah draf awal — periksa dan sesuaikan kembali sebelum digunakan sebagai hasil telaah resmi.</p>
   </div>
@@ -672,6 +675,17 @@ const importActions = document.getElementById('importActions');
 const btnAnalyze = document.getElementById('btnAnalyze');
 const btnCancelImport = document.getElementById('btnCancelImport');
 const aiError = document.getElementById('aiError');
+const aiUnavailableNotice = document.getElementById('aiUnavailableNotice');
+
+// Claude's API proxy is only reachable when this page runs inside Claude's
+// artifact sandbox (an iframe within claude.ai). When hosted standalone
+// (GitHub Pages, a downloaded local file, etc.) window.self === window.top.
+let isEmbedded = true;
+try { isEmbedded = window.self !== window.top; } catch(e) { isEmbedded = false; }
+if (!isEmbedded){
+  aiUnavailableNotice.style.display = 'block';
+  btnAnalyze.disabled = true;
+}
 
 ['dragenter','dragover'].forEach(evt => {
   dropzone.addEventListener(evt, e => { e.preventDefault(); dropzone.classList.add('drag'); });
@@ -844,7 +858,7 @@ Jika suatu informasi identitas tidak ditemukan dalam dokumen, isi dengan string 
     setStage(`Telaah otomatis selesai — ${filledCount} dari ${FLAT_ITEMS.length} butir terisi. Periksa kembali hasilnya di bawah.`, false);
   } catch(err){
     setStage('Telaah otomatis gagal.', false);
-    aiError.textContent = (err.message || 'Terjadi kesalahan saat memproses dengan AI.') + ' Anda tetap dapat mengisi manual di bawah.';
+    aiError.innerHTML = (err.message || 'Terjadi kesalahan saat memproses dengan AI.') + ' Anda tetap dapat mengisi manual di bawah. <strong>Alternatif:</strong> unggah file modul ini langsung ke percakapan dengan Claude dan minta ditelaah — Claude akan membuatkan ulang file ini dengan hasil yang sudah terisi.';
     aiError.classList.add('show');
   } finally {
     btnAnalyze.disabled = false;
