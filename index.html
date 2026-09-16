@@ -7,6 +7,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root{
     --paper:#F3F4EF;
@@ -89,6 +92,79 @@
   .progress-track{height:6px;background:var(--line);border-radius:3px;overflow:hidden;}
   .progress-fill{height:100%;background:var(--teal);width:0%;transition:width .3s ease;}
 
+  /* IMPOR FILE */
+  .import-card{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:22px 24px;
+    margin-bottom:28px;
+  }
+  .import-card h2{font-size:17px;margin-bottom:4px;}
+  .import-card p.hint{font-size:13px;color:var(--ink-soft);margin:0 0 16px;}
+  .dropzone{
+    border:1.5px dashed var(--line);
+    border-radius:8px;
+    padding:22px;
+    text-align:center;
+    background:#FBFBF9;
+    transition:border-color .15s ease, background .15s ease;
+  }
+  .dropzone.drag{border-color:var(--teal);background:#EAF3F0;}
+  .dropzone .dz-label{font-size:14px;color:var(--ink-soft);margin-bottom:10px;}
+  .dropzone input[type=file]{display:none;}
+  .btn-upload{
+    display:inline-block;
+    background:var(--teal);color:#fff;
+    font-size:13.5px;font-weight:600;
+    padding:10px 18px;border-radius:7px;cursor:pointer;
+  }
+  .btn-upload:hover{background:var(--teal-dark);}
+  .dropzone .filetypes{font-size:12px;color:var(--ink-soft);margin-top:8px;}
+  .file-status{
+    display:none;
+    margin-top:16px;
+    padding:12px 14px;
+    border:1px solid var(--line);
+    border-radius:7px;
+    background:#FBFBF9;
+    font-size:13.5px;
+  }
+  .file-status.show{display:block;}
+  .file-status .fname{font-weight:600;color:var(--ink);}
+  .file-status .stage{color:var(--ink-soft);margin-top:4px;display:flex;align-items:center;gap:8px;}
+  .spinner{
+    width:14px;height:14px;border-radius:50%;
+    border:2px solid var(--line);border-top-color:var(--teal);
+    animation:spin .8s linear infinite;
+    display:inline-block;
+    flex-shrink:0;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .preview-toggle{
+    font-size:12.5px;color:var(--teal-dark);cursor:pointer;
+    text-decoration:underline;margin-top:8px;display:inline-block;
+  }
+  .preview-text{
+    display:none;
+    margin-top:8px;
+    max-height:160px;overflow:auto;
+    background:#F3F4EF;border:1px solid var(--line);border-radius:6px;
+    padding:10px 12px;font-size:12px;white-space:pre-wrap;color:var(--ink-soft);
+  }
+  .preview-text.show{display:block;}
+  .import-actions{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;}
+  .btn-analyze{background:var(--gold);color:#fff;}
+  .btn-analyze:hover{background:#96692A;}
+  .btn-analyze:disabled{opacity:.5;cursor:not-allowed;}
+  .ai-error{
+    display:none;
+    margin-top:12px;color:var(--low);font-size:13px;
+    background:#FBEEEC;border:1px solid #E5C4BF;border-radius:6px;padding:10px 12px;
+  }
+  .ai-error.show{display:block;}
+  .privacy-note{font-size:12px;color:var(--ink-soft);margin-top:12px;}
+
   /* IDENTITAS */
   .identitas{
     background:var(--card);
@@ -114,6 +190,19 @@
     transition:border-color .2s ease, background .2s ease;
   }
   .field input:focus, .field textarea:focus{outline:2px solid var(--teal);outline-offset:1px;}
+  .field.ai-filled input{
+    border-color:var(--gold);
+    background:#FBF4E7;
+  }
+  .field .ai-badge{
+    display:none;
+    font-size:11px;
+    color:var(--gold);
+    font-weight:600;
+    margin-left:6px;
+  }
+  .field.ai-filled .ai-badge{display:inline;}
+
   /* SECTIONS */
   .section{
     background:var(--card);
@@ -266,14 +355,40 @@
 
 <div class="wrap">
 
+  <div class="import-card">
+    <h2>Impor Modul / RPP</h2>
+    <p class="hint">Unggah file Word (.docx), PDF, atau Excel (.xlsx/.xls). Aplikasi akan membaca isinya lalu meminta AI menelaah dan mengisikan skor 22 butir di bawah secara otomatis sebagai draf awal.</p>
+    <div class="dropzone" id="dropzone">
+      <div class="dz-label">Seret file ke sini, atau</div>
+      <label class="btn-upload" for="fileInput">Pilih file</label>
+      <input type="file" id="fileInput" accept=".docx,.pdf,.xlsx,.xls">
+      <div class="filetypes">Format didukung: .docx · .pdf · .xlsx · .xls (maks. sekitar 20 halaman untuk hasil terbaik)</div>
+    </div>
+    <div class="file-status" id="fileStatus">
+      <div class="fname" id="fileName"></div>
+      <div class="stage" id="fileStage"></div>
+      <span class="preview-toggle" id="previewToggle" style="display:none;">Lihat teks yang terbaca</span>
+      <div class="preview-text" id="previewText"></div>
+    </div>
+    <div class="import-actions" id="importActions" style="display:none;">
+      <button class="btn-analyze" id="btnAnalyze">Telaah Otomatis dengan AI</button>
+      <button class="btn-ghost" id="btnCancelImport">Batalkan</button>
+    </div>
+    <div class="ai-error" id="aiUnavailableNotice" style="display:none;background:#F3F4EF;border-color:var(--line);color:var(--ink-soft);">
+      Fitur "Telaah Otomatis dengan AI" hanya bisa berfungsi saat file ini dibuka dari dalam tampilan chat Claude, karena permintaannya perlu melewati sandbox resmi Claude. Halaman ini tampaknya dibuka di luar chat Claude (mis. dari GitHub Pages atau file lokal), jadi fitur tersebut dinonaktifkan. Silakan isi skor secara manual di bawah — semua fitur lain (penghitungan skor, cetak, unduh ringkasan) tetap berfungsi normal.
+    </div>
+    <div class="ai-error" id="aiError"></div>
+    <p class="privacy-note">Saat Anda menekan "Telaah Otomatis dengan AI", teks yang terbaca dari file akan dikirim ke Claude (API Anthropic) untuk dianalisis. Hasilnya adalah draf awal — periksa dan sesuaikan kembali sebelum digunakan sebagai hasil telaah resmi.</p>
+  </div>
+
   <div class="identitas">
     <h2>Identitas</h2>
     <div class="grid2">
-      <div class="field" id="field-sekolah"><label>Nama Satuan Pendidikan</label><input type="text" id="f-sekolah" placeholder="mis. SD Negeri 1 Makassar"></div>
-      <div class="field" id="field-guru"><label>Nama Guru Penyusun</label><input type="text" id="f-guru" placeholder="Nama guru"></div>
-      <div class="field" id="field-mapel"><label>Mata Pelajaran</label><input type="text" id="f-mapel" placeholder="mis. IPAS"></div>
-      <div class="field" id="field-kelas"><label>Kelas / Fase</label><input type="text" id="f-kelas" placeholder="mis. Kelas V / Fase C"></div>
-      <div class="field" id="field-topik"><label>Topik / Materi</label><input type="text" id="f-topik" placeholder="mis. Panca Indera Manusia"></div>
+      <div class="field" id="field-sekolah"><label>Nama Satuan Pendidikan<span class="ai-badge">terisi otomatis</span></label><input type="text" id="f-sekolah" placeholder="mis. SD Negeri 1 Makassar"></div>
+      <div class="field" id="field-guru"><label>Nama Guru Penyusun<span class="ai-badge">terisi otomatis</span></label><input type="text" id="f-guru" placeholder="Nama guru"></div>
+      <div class="field" id="field-mapel"><label>Mata Pelajaran<span class="ai-badge">terisi otomatis</span></label><input type="text" id="f-mapel" placeholder="mis. IPAS"></div>
+      <div class="field" id="field-kelas"><label>Kelas / Fase<span class="ai-badge">terisi otomatis</span></label><input type="text" id="f-kelas" placeholder="mis. Kelas V / Fase C"></div>
+      <div class="field" id="field-topik"><label>Topik / Materi<span class="ai-badge">terisi otomatis</span></label><input type="text" id="f-topik" placeholder="mis. Panca Indera Manusia"></div>
       <div class="field"><label>Nama Penelaah</label><input type="text" id="f-penelaah" placeholder="Nama Anda"></div>
       <div class="field"><label>Jabatan Penelaah</label><input type="text" id="f-jabatan" placeholder="mis. Kepala Sekolah / Pengawas"></div>
       <div class="field"><label>Tanggal Telaah</label><input type="date" id="f-tanggal"></div>
@@ -301,7 +416,7 @@
 </div>
 
 <footer class="note">
-  Skala penilaian: 1 = belum tampak, 2 = sebagian tampak, 3 = sebagian besar tampak, 4 = tampak lengkap/sangat sesuai. Predikat: ≥86% Sangat Baik, 71–85% Baik, 56–70% Cukup, &lt;56% Kurang. Pengisian tidak dikirim ke server manapun dan hanya tersimpan selama sesi berjalan di perangkat Anda — gunakan tombol unduh/cetak untuk menyimpan hasilnya.
+  Skala penilaian: 1 = belum tampak, 2 = sebagian tampak, 3 = sebagian besar tampak, 4 = tampak lengkap/sangat sesuai. Predikat: ≥86% Sangat Baik, 71–85% Baik, 56–70% Cukup, &lt;56% Kurang. Pengisian manual tidak dikirim ke server manapun dan hanya tersimpan selama sesi berjalan di perangkat Anda — gunakan tombol unduh/cetak untuk menyimpan hasilnya. Fitur "Telaah Otomatis dengan AI" mengirim teks dokumen yang diunggah ke API Anthropic untuk dianalisis; hasilnya adalah draf yang tetap perlu diperiksa ulang.
 </footer>
 
 <script>
@@ -466,6 +581,15 @@ function recalc(){
 container.addEventListener('change', recalc);
 recalc();
 
+// clear "terisi otomatis" highlight once the user manually edits the field
+['sekolah','guru','mapel','kelas','topik'].forEach(key => {
+  const el = document.getElementById(`f-${key}`);
+  const wrap = document.getElementById(`field-${key}`);
+  if (el && wrap){
+    el.addEventListener('input', () => wrap.classList.remove('ai-filled'));
+  }
+});
+
 // default tanggal telaah to today
 const tanggalEl = document.getElementById('f-tanggal');
 if (tanggalEl && !tanggalEl.value){
@@ -527,11 +651,281 @@ document.getElementById('btnExport').addEventListener('click', () => {
 
 document.getElementById('btnPrint').addEventListener('click', () => window.print());
 
+/* ---------- IMPOR FILE & TELAAH OTOMATIS DENGAN AI ---------- */
+
+// flatten DATA into a single ordered item list for mapping AI scores back to inputs
+const FLAT_ITEMS = [];
+DATA.forEach((section, sIdx) => {
+  section.items.forEach((stmt, iIdx) => {
+    FLAT_ITEMS.push({sIdx, iIdx, stmt, sectionTitle: section.title});
+  });
+});
+
+let extractedText = '';
+let currentFileName = '';
+
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+const fileStatus = document.getElementById('fileStatus');
+const fileNameEl = document.getElementById('fileName');
+const fileStageEl = document.getElementById('fileStage');
+const previewToggle = document.getElementById('previewToggle');
+const previewText = document.getElementById('previewText');
+const importActions = document.getElementById('importActions');
+const btnAnalyze = document.getElementById('btnAnalyze');
+const btnCancelImport = document.getElementById('btnCancelImport');
+const aiError = document.getElementById('aiError');
+const aiUnavailableNotice = document.getElementById('aiUnavailableNotice');
+
+// Claude's API proxy is only reachable when this page runs inside Claude's
+// artifact sandbox (an iframe within claude.ai). When hosted standalone
+// (GitHub Pages, a downloaded local file, etc.) window.self === window.top.
+let isEmbedded = true;
+try { isEmbedded = window.self !== window.top; } catch(e) { isEmbedded = false; }
+if (!isEmbedded){
+  aiUnavailableNotice.style.display = 'block';
+  btnAnalyze.disabled = true;
+}
+
+['dragenter','dragover'].forEach(evt => {
+  dropzone.addEventListener(evt, e => { e.preventDefault(); dropzone.classList.add('drag'); });
+});
+['dragleave','drop'].forEach(evt => {
+  dropzone.addEventListener(evt, e => { e.preventDefault(); dropzone.classList.remove('drag'); });
+});
+dropzone.addEventListener('drop', e => {
+  const f = e.dataTransfer.files[0];
+  if (f) handleFile(f);
+});
+fileInput.addEventListener('change', e => {
+  const f = e.target.files[0];
+  if (f) handleFile(f);
+});
+
+function setStage(text, spinning){
+  fileStageEl.innerHTML = spinning ? `<span class="spinner"></span><span>${text}</span>` : text;
+}
+
+async function handleFile(file){
+  aiError.classList.remove('show');
+  currentFileName = file.name;
+  fileStatus.classList.add('show');
+  fileNameEl.textContent = file.name;
+  previewToggle.style.display = 'none';
+  previewText.classList.remove('show');
+  importActions.style.display = 'none';
+  setStage('Membaca dokumen...', true);
+
+  const ext = file.name.split('.').pop().toLowerCase();
+  try{
+    if (ext === 'docx'){
+      extractedText = await extractDocx(file);
+    } else if (ext === 'pdf'){
+      extractedText = await extractPdf(file);
+    } else if (ext === 'xlsx' || ext === 'xls'){
+      extractedText = await extractExcel(file);
+    } else {
+      throw new Error('Format file tidak didukung. Gunakan .docx, .pdf, .xlsx, atau .xls.');
+    }
+    if (!extractedText || extractedText.trim().length < 30){
+      throw new Error('Teks yang terbaca terlalu sedikit. Pastikan file bukan hasil pindai (scan) gambar tanpa teks.');
+    }
+    setStage(`Berhasil membaca ${extractedText.length.toLocaleString('id-ID')} karakter.`, false);
+    previewToggle.style.display = 'inline-block';
+    previewText.textContent = extractedText.slice(0, 4000) + (extractedText.length > 4000 ? '\n\n… (dipotong untuk pratinjau)' : '');
+    importActions.style.display = 'flex';
+  } catch(err){
+    setStage('Gagal membaca file.', false);
+    aiError.textContent = err.message || 'Terjadi kesalahan saat membaca file.';
+    aiError.classList.add('show');
+  }
+}
+
+previewToggle.addEventListener('click', () => {
+  previewText.classList.toggle('show');
+  previewToggle.textContent = previewText.classList.contains('show') ? 'Sembunyikan teks' : 'Lihat teks yang terbaca';
+});
+
+btnCancelImport.addEventListener('click', () => {
+  extractedText = '';
+  fileStatus.classList.remove('show');
+  importActions.style.display = 'none';
+  fileInput.value = '';
+});
+
+function extractDocx(file){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      mammoth.extractRawText({arrayBuffer: reader.result})
+        .then(res => resolve(res.value))
+        .catch(reject);
+    };
+    reader.onerror = () => reject(new Error('Gagal membaca file .docx.'));
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+async function extractPdf(file){
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
+  let text = '';
+  const maxPages = Math.min(pdf.numPages, 40);
+  for (let i = 1; i <= maxPages; i++){
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    text += content.items.map(it => it.str).join(' ') + '\n\n';
+  }
+  return text;
+}
+
+function extractExcel(file){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try{
+        const wb = XLSX.read(reader.result, {type:'array'});
+        let text = '';
+        wb.SheetNames.forEach(name => {
+          text += `--- Sheet: ${name} ---\n`;
+          text += XLSX.utils.sheet_to_csv(wb.Sheets[name]) + '\n\n';
+        });
+        resolve(text);
+      } catch(e){ reject(e); }
+    };
+    reader.onerror = () => reject(new Error('Gagal membaca file Excel.'));
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+btnAnalyze.addEventListener('click', async () => {
+  aiError.classList.remove('show');
+  btnAnalyze.disabled = true;
+  setStage('Mengirim ke AI untuk ditelaah...', true);
+
+  const criteriaList = FLAT_ITEMS.map((it, idx) => `${idx+1}. [${it.sectionTitle}] ${it.stmt}`).join('\n');
+  const truncated = extractedText.slice(0, 14000);
+
+  const systemPrompt = `Anda adalah penelaah ahli modul ajar/Perencanaan Pembelajaran Mendalam (RPM) di Indonesia, memahami prinsip berkesadaran (mindful), bermakna (meaningful), dan menggembirakan (joyful) dari Kemendikdasmen.
+Anda akan menerima isi dokumen modul ajar, lalu menilai 22 butir kriteria berikut dengan skala 1-4 (1=belum tampak, 2=sebagian tampak, 3=sebagian besar tampak, 4=tampak lengkap/sangat sesuai):
+${criteriaList}
+
+Jawab HANYA dengan objek JSON valid, tanpa teks lain, tanpa kalimat pembuka, tanpa markdown/backtick, tanpa penjelasan apa pun sebelum atau sesudahnya. Jawaban Anda harus dimulai langsung dengan karakter { dan diakhiri dengan }. Struktur harus persis seperti ini:
+{
+  "identitas": {"sekolah":"", "guru":"", "mapel":"", "kelas":"", "topik":""},
+  "skor": [22 angka 1-4 sesuai urutan butir di atas],
+  "catatan_bagian": ["catatan singkat maks 20 kata untuk bagian A","...untuk B","...untuk C","...untuk D","...untuk E","...untuk F"],
+  "rekomendasi_kategori": salah satu dari "Layak digunakan" / "Layak dengan sedikit revisi" / "Layak dengan revisi mayor" / "Belum layak digunakan",
+  "rekomendasi_catatan": "ringkasan rekomendasi tindak lanjut, maks 50 kata"
+}
+Jika suatu informasi identitas tidak ditemukan dalam dokumen, isi dengan string kosong. Dasarkan skor pada bukti nyata di dalam teks dokumen, bukan asumsi.`;
+
+  try{
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 2000,
+        system: systemPrompt,
+        messages: [
+          {role: 'user', content: `Berikut isi dokumen modul ajar (nama file: ${currentFileName}):\n\n${truncated}`}
+        ]
+      })
+    });
+    if (!response.ok){
+      const errBody = await response.text().catch(() => '');
+      console.error('Anthropic API error', response.status, errBody);
+      throw new Error('Gagal menghubungi layanan AI (status ' + response.status + '). Jika file ini Anda buka langsung dari folder Unduhan (bukan dari dalam tampilan chat Claude), fitur AI tidak akan bisa terhubung — coba buka pratinjau file dari chat.');
+    }
+    const data = await response.json();
+    console.log('AI raw response', data);
+    const textBlock = (data.content || []).find(b => b.type === 'text');
+    if (!textBlock) throw new Error('AI tidak mengembalikan jawaban teks.');
+    let raw = textBlock.text.replace(/```json|```/g, '').trim();
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    if (jsonMatch) raw = jsonMatch[0];
+    let result;
+    try{
+      result = JSON.parse(raw);
+    } catch(parseErr){
+      console.error('Gagal parse JSON dari AI. Teks mentah:', textBlock.text);
+      throw new Error('Jawaban AI tidak dalam format yang diharapkan. Coba tekan "Telaah Otomatis dengan AI" sekali lagi.');
+    }
+
+    const filledCount = applyAiResult(result);
+    setStage(`Telaah otomatis selesai — ${filledCount} dari ${FLAT_ITEMS.length} butir terisi. Periksa kembali hasilnya di bawah.`, false);
+  } catch(err){
+    setStage('Telaah otomatis gagal.', false);
+    aiError.innerHTML = (err.message || 'Terjadi kesalahan saat memproses dengan AI.') + ' Anda tetap dapat mengisi manual di bawah. <strong>Alternatif:</strong> unggah file modul ini langsung ke percakapan dengan Claude dan minta ditelaah — Claude akan membuatkan ulang file ini dengan hasil yang sudah terisi.';
+    aiError.classList.add('show');
+  } finally {
+    btnAnalyze.disabled = false;
+  }
+});
+
+function applyAiResult(result){
+  console.log('AI parsed result', result);
+  if (!result || !Array.isArray(result.skor) || result.skor.length === 0){
+    throw new Error('Format jawaban AI tidak lengkap (skor tidak ditemukan). Silakan coba lagi.');
+  }
+  // identitas
+  if (result.identitas){
+    const map = {sekolah:'f-sekolah', guru:'f-guru', mapel:'f-mapel', kelas:'f-kelas', topik:'f-topik'};
+    Object.entries(map).forEach(([key, id]) => {
+      const val = result.identitas[key];
+      const el = document.getElementById(id);
+      const wrap = document.getElementById(`field-${key}`);
+      if (val && el && !el.value){
+        el.value = val;
+        if (wrap) wrap.classList.add('ai-filled');
+      }
+    });
+  }
+  // skor per butir
+  let filledCount = 0;
+  if (Array.isArray(result.skor)){
+    result.skor.forEach((score, idx) => {
+      const item = FLAT_ITEMS[idx];
+      if (!item) return;
+      const v = Math.min(4, Math.max(1, parseInt(score) || 0));
+      if (!v) return;
+      const radio = document.querySelector(`input[name="item-${item.sIdx}-${item.iIdx}"][value="${v}"]`);
+      if (radio){ radio.checked = true; filledCount++; }
+    });
+  }
+  // catatan per bagian
+  if (Array.isArray(result.catatan_bagian)){
+    result.catatan_bagian.forEach((note, sIdx) => {
+      const el = document.getElementById(`notes-${sIdx}`);
+      if (el && note && !el.value) el.value = note;
+    });
+  }
+  // rekomendasi
+  if (result.rekomendasi_kategori){
+    const radios = document.querySelectorAll('input[name="rekom"]');
+    radios.forEach(r => { if (r.value === result.rekomendasi_kategori) r.checked = true; });
+  }
+  if (result.rekomendasi_catatan){
+    const el = document.getElementById('f-rekomendasi');
+    if (!el.value) el.value = result.rekomendasi_catatan;
+  }
+  recalc();
+  document.querySelector('.simpulan').scrollIntoView({behavior:'smooth', block:'center'});
+  return filledCount;
+}
+
 document.getElementById('btnReset').addEventListener('click', () => {
   if (!confirm('Hapus semua isian pada instrumen ini?')) return;
   document.querySelectorAll('input[type="radio"]').forEach(el => el.checked = false);
   document.querySelectorAll('input[type="text"], input[type="date"]').forEach(el => el.value = '');
   document.querySelectorAll('textarea').forEach(el => el.value = '');
+  extractedText = '';
+  fileStatus.classList.remove('show');
+  importActions.style.display = 'none';
+  aiError.classList.remove('show');
+  fileInput.value = '';
   recalc();
 });
 </script>
